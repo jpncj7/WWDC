@@ -138,6 +138,22 @@ public final class Storage {
                 } else {
                     backgroundRealm.add(newSession, update: true)
                 }
+
+                newSession.sessionResources.forEach { sessionResource in
+                    var resource: ResourceRepresentation?
+
+                    if sessionResource.type == SessionResourceType.activity {
+                        resource = ResourceRepresentation()
+                        resource?.identifier = sessionResource.identifier
+                        resource?.type = ResourceType.session.rawValue
+                    } else if sessionResource.type == SessionResourceType.resource {
+                        resource = sessionsResponse.resources.first { $0.identifier == sessionResource.identifier }!
+                    } else {
+                        print("Unknown: \(sessionResource.identifier) \(sessionResource.type)")
+                    }
+
+                    if let resource = resource { newSession.related.append(resource) }
+                }
             }
 
             // Merge existing instance data, preserving user-defined data
@@ -153,6 +169,7 @@ public final class Storage {
             backgroundRealm.add(sessionsResponse.rooms, update: true)
             backgroundRealm.add(sessionsResponse.tracks, update: true)
             backgroundRealm.add(sessionsResponse.events, update: true)
+            backgroundRealm.add(sessionsResponse.resources, update: true)
 
             // add instances to rooms
             backgroundRealm.objects(Room.self).forEach { room in
@@ -204,7 +221,6 @@ public final class Storage {
             }
 
             // Create schedule view
-
             backgroundRealm.delete(backgroundRealm.objects(ScheduleSection.self))
 
             let instances = backgroundRealm.objects(SessionInstance.self).sorted(by: SessionInstance.standardSort)
@@ -229,6 +245,7 @@ public final class Storage {
                     previousStartTime = instance.startTime
                 }
             }
+
         }, disableAutorefresh: true, completionBlock: completion)
     }
 

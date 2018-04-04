@@ -45,7 +45,8 @@ public class Session: Object {
     public let assets = List<SessionAsset>()
 
     // The session's "related" resources -- other sessions, documentation, guides and sample code
-    public var related = [SessionResource]()
+    public var sessionResources = [SessionResource]()
+    public var related = List<ResourceRepresentation>()
 
     /// Whether this session is downloaded
     @objc public dynamic var isDownloaded = false

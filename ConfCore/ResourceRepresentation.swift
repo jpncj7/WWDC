@@ -14,12 +14,17 @@ public enum ResourceType: String {
     case guide = "WWDCSessionResourceTypeGuide"
     case documentation = "WWDCSessionResourceTypeDocumentation"
     case sampleCode = "WWDCSessionResourceTypeSampleCode"
+    case session = "WWDCSessionResourceRelatedSession"
 }
 
 public class ResourceRepresentation: Object {
-    @objc public dynamic var identifier = -1
+    @objc public dynamic var identifier = ""
     @objc public dynamic var title = ""
     @objc public dynamic var url = ""
     @objc public dynamic var descriptor = ""
     @objc public dynamic var type = ""
+
+    public override class func primaryKey() -> String? {
+        return "identifier"
+    }
 }

@@ -40,7 +40,7 @@ class ResourcesJSONAdapter: Adapter {
         }
 
         let resource = ResourceRepresentation()
-        resource.identifier = id
+        resource.identifier = String(id)
         resource.title = title
         resource.url = url
         resource.type = type

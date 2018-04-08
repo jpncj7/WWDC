@@ -131,28 +131,27 @@ public final class Storage {
         }
 
         performSerializedBackgroundWrite(writeBlock: { backgroundRealm in
-            // Merge existing session data, preserving user-defined data
+
             sessionsResponse.sessions.forEach { newSession in
+                // Begin saving outlines of related resources
+                newSession.sessionResources.forEach { sessionResource in
+                    if let existingResource = backgroundRealm.object(ofType: ResourceRepresentation.self, forPrimaryKey: sessionResource.identifier) {
+                        newSession.related.append(existingResource)
+                    } else {
+                        let resource = ResourceRepresentation()
+                        resource.identifier = sessionResource.identifier
+                        if sessionResource.type == SessionResourceType.activity {
+                            resource.type = ResourceType.session.rawValue
+                        }
+                        newSession.related.append(resource)
+                    }
+                }
+
+                // Merge existing session data, preserving user-defined data
                 if let existingSession = backgroundRealm.object(ofType: Session.self, forPrimaryKey: newSession.identifier) {
                     existingSession.merge(with: newSession, in: backgroundRealm)
                 } else {
                     backgroundRealm.add(newSession, update: true)
-                }
-
-                newSession.sessionResources.forEach { sessionResource in
-                    var resource: ResourceRepresentation?
-
-                    if sessionResource.type == SessionResourceType.activity {
-                        resource = ResourceRepresentation()
-                        resource?.identifier = sessionResource.identifier
-                        resource?.type = ResourceType.session.rawValue
-                    } else if sessionResource.type == SessionResourceType.resource {
-                        resource = sessionsResponse.resources.first { $0.identifier == sessionResource.identifier }!
-                    } else {
-                        print("Unknown: \(sessionResource.identifier) \(sessionResource.type)")
-                    }
-
-                    if let resource = resource { newSession.related.append(resource) }
                 }
             }
 
@@ -162,6 +161,15 @@ public final class Storage {
                     existingInstance.merge(with: newInstance, in: backgroundRealm)
                 } else {
                     backgroundRealm.add(newInstance, update: true)
+                }
+            }
+
+            // Merge non-Session Resources with existing resource data
+            sessionsResponse.resources.forEach { newResource in
+                if let existingResource = backgroundRealm.object(ofType: ResourceRepresentation.self, forPrimaryKey: newResource.identifier) {
+                    existingResource.merge(with: newResource, in: backgroundRealm)
+                } else {
+                    backgroundRealm.add(newResource, update: true)
                 }
             }
 
@@ -217,6 +225,15 @@ public final class Storage {
                     if !session.assets.contains(liveAsset) {
                         session.assets.append(liveAsset)
                     }
+                }
+            }
+
+            backgroundRealm.objects(ResourceRepresentation.self).filter("type == %@", ResourceType.session.rawValue).forEach { resource in
+                let identifier = resource.identifier.replacingOccurrences(of: "wwdc", with: "")
+                if let session = backgroundRealm.object(ofType: Session.self, forPrimaryKey: identifier) {
+                    resource.session = session
+                } else {
+                    print("Expected session to match related activity identifier: \(identifier)")
                 }
             }
 

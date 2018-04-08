@@ -6,20 +6,13 @@
 //  Copyright © 2018 Guilherme Rambo. All rights reserved.
 //
 
-import RealmSwift
-
 public enum SessionResourceType: String {
     case none
     case resource = "WWDCSessionResourceTypeResource"
     case activity = "WWDCSessionResourceTypeActivity"
 }
 
-public class SessionResource: Object {
-
-    @objc public var identifier: String = ""
+public class SessionResource {
+    public var identifier: String = ""
     public var type: SessionResourceType = .none
-
-    public override class func primaryKey() -> String? {
-        return "identifier"
-    }
 }

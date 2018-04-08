@@ -35,7 +35,7 @@ class ResourcesJSONAdapter: Adapter {
             return .error(.missingKey(ResourceKeys.url))
         }
 
-        guard let type = input[ResourceKeys.type].string else {
+        guard let rawType = input[ResourceKeys.type].string else {
             return .error(.missingKey(ResourceKeys.type))
         }
 
@@ -43,7 +43,7 @@ class ResourcesJSONAdapter: Adapter {
         resource.identifier = String(id)
         resource.title = title
         resource.url = url
-        resource.type = type
+        resource.type = ResourceType(rawSessionType: rawType)?.rawValue ?? ""
 
         if let description = input[ResourceKeys.description].string {
             resource.descriptor = description

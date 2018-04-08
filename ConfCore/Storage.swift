@@ -228,6 +228,7 @@ public final class Storage {
                 }
             }
 
+            // Associate "related session" resources with Session objects in database
             backgroundRealm.objects(ResourceRepresentation.self).filter("type == %@", ResourceType.session.rawValue).forEach { resource in
                 let identifier = resource.identifier.replacingOccurrences(of: "wwdc", with: "")
                 if let session = backgroundRealm.object(ofType: Session.self, forPrimaryKey: identifier) {

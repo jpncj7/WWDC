@@ -41,7 +41,6 @@ final class SessionsJSONAdapter: Adapter {
     typealias OutputType = Session
 
     func adapt(_ input: JSON) -> Result<Session, AdapterError> {
-        // TODO: Why are we doing this? 👇🏻🤔 Doesn't account for new "fall" sessions, and we'll need to give any related activity IDs the same treatment if they're to match?
         guard let id = input[SessionKeys.id].string?.replacingOccurrences(of: "wwdc", with: "") else {
             return .error(.missingKey(SessionKeys.id))
         }

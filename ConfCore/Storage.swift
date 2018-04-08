@@ -131,7 +131,6 @@ public final class Storage {
         }
 
         performSerializedBackgroundWrite(writeBlock: { backgroundRealm in
-
             sessionsResponse.sessions.forEach { newSession in
                 // Begin saving outlines of related resources
                 newSession.sessionResources.forEach { sessionResource in
@@ -263,7 +262,6 @@ public final class Storage {
                     previousStartTime = instance.startTime
                 }
             }
-
         }, disableAutorefresh: true, completionBlock: completion)
     }
 

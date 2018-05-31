@@ -7,7 +7,6 @@
 //
 
 import Cocoa
-import CommunitySupport
 import Sparkle
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -27,15 +26,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, didReceiveRemoteNotification userInfo: [String: Any]) {
-        if CMSCommunityCenter.shared.processNotification(userInfo: userInfo) {
-            // Community center handled this notification
-            return
-        } else if coordinator.receiveNotification(with: userInfo) {
-            // Coordinator handled this notification
-            return
-        }
-
-        // handle other types of notification
+        coordinator.receiveNotification(with: userInfo)
     }
 
     @objc func handleURLEvent(_ event: NSAppleEventDescriptor?, replyEvent: NSAppleEventDescriptor?) {
@@ -57,6 +48,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @IBAction func showAboutWindow(_ sender: Any) {
         coordinator.showAboutWindow()
+    }
+
+    @IBAction func viewFeatured(_ sender: Any) {
+        coordinator.showFeatured()
+    }
+
+    @IBAction func viewSchedule(_ sender: Any) {
+        coordinator.showSchedule()
+    }
+
+    @IBAction func viewVideos(_ sender: Any) {
+        coordinator.showVideos()
     }
 
     func applicationWillBecomeActive(_ notification: Notification) {
@@ -82,7 +85,7 @@ extension AppDelegate: SUUpdaterDelegate {
 
     func updaterMayCheck(forUpdates updater: SUUpdater) -> Bool {
         #if DEBUG
-            return false
+            return ProcessInfo.processInfo.arguments.contains("--enable-updates")
         #else
             return true
         #endif

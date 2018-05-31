@@ -47,6 +47,19 @@ final class SessionViewModel {
         return Observable.from(object: self.session).map({ $0.summary })
     }()
 
+    lazy var rxActionPrompt: Observable<String?> = {
+        guard sessionInstance.startTime > today() else { return Observable.just(nil) }
+        guard actionLinkURL != nil else { return Observable.just(nil) }
+
+        return Observable.from(object: self.sessionInstance).map({ $0.actionLinkPrompt })
+    }()
+
+    var actionLinkURL: URL? {
+        guard let candidateURL = sessionInstance.actionLinkURL else { return nil }
+
+        return URL(string: candidateURL)
+    }
+
     lazy var rxContext: Observable<String> = {
         if self.style == .schedule {
             let so = Observable.from(object: self.session)
@@ -103,7 +116,7 @@ final class SessionViewModel {
             return Observable.just(false)
         }
 
-        return Observable.from(object: self.sessionInstance).map({ $0.type == .lab })
+        return Observable.from(object: self.sessionInstance).map({ [.lab, .labByAppointment].contains($0.type) })
     }()
 
     lazy var rxPlayableContent: Observable<Results<SessionAsset>> = {
@@ -129,6 +142,14 @@ final class SessionViewModel {
         let progresses = self.session.progresses.filter(NSPredicate(value: true))
 
         return Observable.collection(from: progresses)
+    }()
+
+    lazy var rxRelatedSessions: Observable<Results<RelatedResource>> = {
+        let predicateFormat = "type == %@ AND (ANY session.instances.sessionType == %d OR ANY session.instances.startTime >= %@)"
+        let relatedPredicate = NSPredicate(format: predicateFormat, RelatedResourceType.session.rawValue, SessionInstanceType.session.rawValue, today() as NSDate)
+        let validRelatedSessions = self.session.related.filter(relatedPredicate)
+
+        return Observable.collection(from: validRelatedSessions)
     }()
 
     convenience init?(session: Session) {
@@ -158,7 +179,12 @@ final class SessionViewModel {
 
         let year = Calendar.current.component(.year, from: event.startDate)
 
-        return "WWDC \(year) · Session \(session.number)"
+        // Currently, there's only one event which is not a WWDC (the "Fall 2017" event),
+        // for some reason it includes the year on its name, while WWDC editions do not,
+        // so we have to use this workaround to avoid displaying the year twice
+        let name = event.name.replacingOccurrences(of: " \(year)", with: "")
+
+        return "\(name) \(year) · Session \(session.number)"
     }
 
     static func focusesDescription(from focuses: [Focus], collapse: Bool) -> String {
@@ -224,7 +250,7 @@ final class SessionViewModel {
 
     static func imageUrl(for session: Session) -> URL? {
         if let instance = session.instances.first {
-            guard instance.type == .session || instance.type == .lab else {
+            guard [.session, .lab, .labByAppointment].contains(instance.type) else {
                 return nil
             }
         }

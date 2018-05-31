@@ -9,6 +9,7 @@
 import Cocoa
 import RxSwift
 import RxCocoa
+import ConfCore
 
 class SessionSummaryViewController: NSViewController {
 
@@ -49,6 +50,14 @@ class SessionSummaryViewController: NSViewController {
         return v
     }()
 
+    lazy var relatedSessionsViewController: RelatedSessionsViewController = {
+        let c = RelatedSessionsViewController()
+
+        c.title = "Related Sessions"
+
+        return c
+    }()
+
     private lazy var summaryLabel: WWDCTextField = {
         let l = WWDCTextField(labelWithString: "")
         l.font = .systemFont(ofSize: 18)
@@ -74,8 +83,29 @@ class SessionSummaryViewController: NSViewController {
         return l
     }()
 
+    private lazy var actionLinkLabel: ActionLabel = {
+        let l = ActionLabel(labelWithString: "")
+
+        l.font = .systemFont(ofSize: 16)
+        l.textColor = .primary
+        l.target = self
+        l.action = #selector(clickedActionLabel)
+
+        return l
+    }()
+
+    private lazy var contextStackView: NSStackView = {
+        let v = NSStackView(views: [self.contextLabel, self.actionLinkLabel])
+
+        v.orientation = .horizontal
+        v.spacing = 16
+        v.translatesAutoresizingMaskIntoConstraints = false
+
+        return v
+    }()
+
     private lazy var stackView: NSStackView = {
-        let v = NSStackView(views: [self.summaryLabel, self.contextLabel])
+        let v = NSStackView(views: [self.summaryLabel, self.contextStackView])
 
         v.orientation = .vertical
         v.alignment = .leading
@@ -108,6 +138,13 @@ class SessionSummaryViewController: NSViewController {
         stackView.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
         stackView.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
         stackView.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
+
+        addChildViewController(relatedSessionsViewController)
+        relatedSessionsViewController.view.translatesAutoresizingMaskIntoConstraints = false
+        stackView.addArrangedSubview(relatedSessionsViewController.view)
+        relatedSessionsViewController.view.heightAnchor.constraint(equalToConstant: RelatedSessionsViewController.Metrics.height).isActive = true
+        relatedSessionsViewController.view.leadingAnchor.constraint(equalTo: stackView.leadingAnchor).isActive = true
+        relatedSessionsViewController.view.trailingAnchor.constraint(equalTo: stackView.trailingAnchor).isActive = true
     }
 
     override func viewDidLoad() {
@@ -129,6 +166,21 @@ class SessionSummaryViewController: NSViewController {
         }).disposed(by: disposeBag)
         viewModel.rxSummary.bind(to: summaryLabel.rx.text).disposed(by: disposeBag)
         viewModel.rxFooter.bind(to: contextLabel.rx.text).disposed(by: disposeBag)
+
+        viewModel.rxRelatedSessions.subscribe(onNext: { [weak self] relatedResources in
+            let relatedSessions = relatedResources.compactMap({ $0.session })
+            self?.relatedSessionsViewController.sessions = relatedSessions.compactMap(SessionViewModel.init)
+        }).disposed(by: disposeBag)
+
+        relatedSessionsViewController.scrollToBeginningOfDocument(nil)
+
+        viewModel.rxActionPrompt.bind(to: actionLinkLabel.rx.text).disposed(by: disposeBag)
+    }
+
+    @objc private func clickedActionLabel() {
+        guard let url = viewModel?.actionLinkURL else { return }
+
+        NSWorkspace.shared.open(url)
     }
 
 }

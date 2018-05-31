@@ -12,9 +12,11 @@ import RxSwift
 import ConfCore
 import PlayerUI
 import ThrowBack
+import os.log
 
 final class AppCoordinator {
 
+    let log = OSLog(subsystem: "WWDC", category: "AppCoordinator")
     private let disposeBag = DisposeBag()
 
     var liveObserver: LiveObserver
@@ -25,6 +27,7 @@ final class AppCoordinator {
     var windowController: MainWindowController
     var tabController: WWDCTabViewController<MainWindowTab>
 
+    var featuredController: FeaturedContentViewController
     var scheduleController: SessionsSplitViewController
     var videosController: SessionsSplitViewController
 
@@ -60,6 +63,9 @@ final class AppCoordinator {
             storage = try Storage(realmConfig)
 
             syncEngine = SyncEngine(storage: storage, client: client)
+            #if ICLOUD
+            syncEngine.userDataSyncEngine.isEnabled = Preferences.shared.syncUserData
+            #endif
         } catch {
             fatalError("Realm initialization error: \(error)")
         }
@@ -71,6 +77,16 @@ final class AppCoordinator {
         // Primary UI Intialization
 
         tabController = WWDCTabViewController(windowController: windowController)
+
+        // Featured
+        featuredController = FeaturedContentViewController()
+        featuredController.identifier = NSUserInterfaceItemIdentifier(rawValue: "Featured")
+        let featuredItem = NSTabViewItem(viewController: featuredController)
+        featuredItem.label = "Featured"
+
+        if Constants.isFeaturedTabEnabled {
+            tabController.addTabViewItem(featuredItem)
+        }
 
         // Schedule
         scheduleController = SessionsSplitViewController(windowController: windowController, listStyle: .schedule)
@@ -102,15 +118,19 @@ final class AppCoordinator {
         _ = NotificationCenter.default.addObserver(forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: nil) { _ in self.startup() }
         _ = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) { _ in self.saveApplicationState() }
         _ = NotificationCenter.default.addObserver(forName: .RefreshPeriodicallyPreferenceDidChange, object: nil, queue: nil, using: { _  in self.resetAutorefreshTimer() })
+
+        NSApp.isAutomaticCustomizeTouchBarMenuItemEnabled = true
     }
 
     /// The list controller for the active tab
-    var currentListController: SessionsTableViewController {
+    var currentListController: SessionsTableViewController? {
         switch activeTab {
         case .schedule:
             return scheduleController.listViewController
         case .videos:
             return videosController.listViewController
+        default:
+            return nil
         }
     }
 
@@ -138,7 +158,11 @@ final class AppCoordinator {
     var selectedViewModelRegardlessOfTab: SessionViewModel?
 
     /// The viewModel for the current playback session
-    var currentPlaybackViewModel: PlaybackViewModel?
+    var currentPlaybackViewModel: PlaybackViewModel? {
+        didSet {
+            observeNowPlayingInfo()
+        }
+    }
 
     private func setupBindings() {
         tabController.rxActiveTab.subscribe(onNext: { [weak self] activeTab in
@@ -157,6 +181,12 @@ final class AppCoordinator {
             self?.scheduleController.detailViewController.viewModel = viewModel
             self?.updateSelectedViewModelRegardlessOfTab()
         }).disposed(by: disposeBag)
+
+        if Constants.isFeaturedTabEnabled {
+            storage.featuredSectionsObservable.subscribeOn(MainScheduler.instance).subscribe(onNext: { [weak self] sections in
+                self?.featuredController.sections = sections.map { FeaturedSectionViewModel(section: $0) }
+            }).disposed(by: disposeBag)
+        }
     }
 
     private func updateSelectedViewModelRegardlessOfTab() {
@@ -165,10 +195,28 @@ final class AppCoordinator {
             selectedViewModelRegardlessOfTab = selectedScheduleItemValue
         case .videos:
             selectedViewModelRegardlessOfTab = selectedSessionValue
+        default:
+            selectedViewModelRegardlessOfTab = nil
         }
 
         updateShelfBasedOnSelectionChange()
         updateCurrentActivity(with: selectedViewModelRegardlessOfTab)
+    }
+
+    func switchToAppropriateTab(for instance: SessionInstance) {
+        if ![.video, .session].contains(instance.type) {
+            // If the session instace is not a video or regular session, we must be
+            // on the schedule tab to show it, since the videos tab only shows videos
+            tabController.activeTab = .schedule
+        } else {
+            tabController.activeTab = .videos
+        }
+    }
+
+    func selectSessionOnAppropriateTab(with viewModel: SessionViewModel) {
+        switchToAppropriateTab(for: viewModel.sessionInstance)
+
+        currentListController?.selectSession(with: viewModel.identifier)
     }
 
     private func setupDelegation() {
@@ -176,14 +224,18 @@ final class AppCoordinator {
 
         videoDetail.shelfController.delegate = self
         videoDetail.summaryController.actionsViewController.delegate = self
+        videoDetail.summaryController.relatedSessionsViewController.delegate = self
 
         let scheduleDetail = scheduleController.detailViewController
 
         scheduleDetail.shelfController.delegate = self
         scheduleDetail.summaryController.actionsViewController.delegate = self
+        scheduleDetail.summaryController.relatedSessionsViewController.delegate = self
 
         videosController.listViewController.delegate = self
         scheduleController.listViewController.delegate = self
+
+        featuredController.delegate = self
     }
 
     private func updateListsAfterSync(migrate: Bool = false) {
@@ -281,9 +333,30 @@ final class AppCoordinator {
         showAccountPreferences()
     }
 
-    func receiveNotification(with userInfo: [String: Any]) -> Bool {
-        return liveObserver.processSubscriptionNotification(with: userInfo) ||
+    @discardableResult func receiveNotification(with userInfo: [String: Any]) -> Bool {
+        let userDataSyncEngineHandled: Bool
+
+        #if ICLOUD
+        userDataSyncEngineHandled = syncEngine.userDataSyncEngine.processSubscriptionNotification(with: userInfo)
+        #else
+        userDataSyncEngineHandled = false
+        #endif
+
+        return userDataSyncEngineHandled ||
+            liveObserver.processSubscriptionNotification(with: userInfo) ||
             RemoteEnvironment.shared.processSubscriptionNotification(with: userInfo)
+    }
+
+    // MARK: - Now playing info
+
+    private var nowPlayingInfoBag = DisposeBag()
+
+    private func observeNowPlayingInfo() {
+        nowPlayingInfoBag = DisposeBag()
+
+        currentPlaybackViewModel?.nowPlayingInfo.asObservable().subscribe(onNext: { [weak self] _ in
+            self?.publishNowPlayingInfo()
+        }).disposed(by: nowPlayingInfoBag)
     }
 
     // MARK: - State restoration
@@ -334,13 +407,17 @@ final class AppCoordinator {
 
     // MARK: - Preferences
 
-    private lazy var preferencesCoordinator: PreferencesCoordinator = PreferencesCoordinator()
+    private lazy var preferencesCoordinator = PreferencesCoordinator()
 
     func showAccountPreferences() {
         preferencesCoordinator.show(in: .account)
     }
 
     func showPreferences(_ sender: Any?) {
+        #if ICLOUD
+        preferencesCoordinator.userDataSyncEngine = syncEngine.userDataSyncEngine
+        #endif
+
         preferencesCoordinator.show()
     }
 
@@ -358,6 +435,18 @@ final class AppCoordinator {
 
     func showAboutWindow() {
         aboutWindowController.showWindow(nil)
+    }
+
+    func showFeatured() {
+//        tabController.activeTab = .featured
+    }
+
+    func showSchedule() {
+        tabController.activeTab = .schedule
+    }
+
+    func showVideos() {
+        tabController.activeTab = .videos
     }
 
     // MARK: - Refresh

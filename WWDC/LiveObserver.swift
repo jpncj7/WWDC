@@ -10,9 +10,11 @@ import Foundation
 import ConfCore
 import RealmSwift
 import CloudKit
+import os.log
 
 final class LiveObserver {
 
+    private let log = OSLog(subsystem: "WWDC", category: "LiveObserver")
     private let dateProvider: DateProvider
     private let storage: Storage
 
@@ -42,17 +44,20 @@ final class LiveObserver {
     func start() {
         guard !isRunning else { return }
 
+        os_log("start()", log: log, type: .debug)
+
         specialEventsObserver.fetch()
 
         guard isWWDCWeek else {
-            NSLog("Live event observer not started because we're not on WWDC week")
+            os_log("Not starting the live event observer because WWDC is not this week",
+                   log: log,
+                   type: .debug)
+
             isRunning = false
             return
         }
 
         isRunning = true
-
-        NSLog("Live event observer started")
 
         backgroundActivity.schedule { [weak self] completion in
             // Because of Realm
@@ -71,6 +76,8 @@ final class LiveObserver {
     }
 
     private func checkForLiveSessions() {
+        os_log("checkForLiveSessions()", log: log, type: .debug)
+
         let startTime = dateProvider()
         let endTime = dateProvider().addingTimeInterval(Constants.liveSessionEndTimeTolerance)
 
@@ -90,6 +97,11 @@ final class LiveObserver {
     }
 
     private func setLiveFlag(_ value: Bool, for instances: [SessionInstance]) {
+        os_log("Setting live flag to %{public}@ for %{public}d instances",
+               log: log,
+               type: .info,
+               String(describing: value), instances.count)
+
         storage.modify(instances) { bgInstances in
             bgInstances.forEach { instance in
                 guard !instance.isForcedLive else { return }
@@ -112,14 +124,14 @@ private extension SessionAsset {
     }
 
     convenience init?(record: CKRecord) {
-        guard let number = record["sessionNumber"] as? Int else { return nil }
+        guard let sessionIdentifier = record["sessionIdentifier"] as? String else { return nil }
         guard let hls = record["hls"] as? String else { return nil }
 
         self.init()
 
         assetType = .liveStreamVideo
         year = Calendar.current.component(.year, from: today())
-        sessionId = "\(number)"
+        sessionId = sessionIdentifier
         remoteURL = hls
         identifier = generateIdentifier()
     }
@@ -128,6 +140,7 @@ private extension SessionAsset {
 
 private final class CloudKitLiveObserver {
 
+    private let log = OSLog(subsystem: "WWDC", category: "CloudKitLiveObserver")
     private let storage: Storage
 
     private lazy var database: CKDatabase = CKContainer.default().publicCloudDatabase
@@ -151,7 +164,11 @@ private final class CloudKitLiveObserver {
 
             operation.queryCompletionBlock = { [unowned self] _, error in
                 if let error = error {
-                    NSLog("Error fetching special live videos: \(error)")
+                    os_log("Error fetching special live records: %{public}@",
+                           log: self.log,
+                           type: .error,
+                           String(describing: error))
+
                     DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
                         self.fetch()
                     }
@@ -184,8 +201,12 @@ private final class CloudKitLiveObserver {
 
             database.save(subscription) { _, error in
                 if let error = error {
-                    NSLog("[LiveObserver] Error creating subscriptions: \(error)")
-                    return
+                    os_log("Error creating subscriptions: %{public}@",
+                           log: self.log,
+                           type: .error,
+                           String(describing: error))
+                } else {
+                    os_log("Subscriptions created", log: self.log, type: .info)
                 }
             }
         #endif
@@ -210,12 +231,12 @@ private final class CloudKitLiveObserver {
     }
 
     private func store(_ records: [CKRecord]) {
-        print("storing live records")
+        os_log("Storing live records", log: log, type: .debug)
 
         storage.backgroundUpdate { realm in
             records.forEach { record in
                 guard let asset = SessionAsset(record: record) else { return }
-                guard let session = realm.object(ofType: Session.self, forPrimaryKey: "\(asset.year)-\(asset.sessionId)") else { return }
+                guard let session = realm.object(ofType: Session.self, forPrimaryKey: asset.sessionId) else { return }
                 guard let instance = session.instances.first else { return }
 
                 if let existingAsset = realm.object(ofType: SessionAsset.self, forPrimaryKey: asset.identifier) {

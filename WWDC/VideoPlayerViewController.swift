@@ -22,6 +22,7 @@ extension Notification.Name {
 protocol VideoPlayerViewControllerDelegate: class {
 
     func createBookmark(at timecode: Double, with snapshot: NSImage?)
+    func createFavorite()
 
 }
 
@@ -248,10 +249,6 @@ final class VideoPlayerViewController: NSViewController {
     }
 
     deinit {
-        #if DEBUG
-            Swift.print("VideoPlayerViewController is gone")
-        #endif
-
         player.removeObserver(self, forKeyPath: #keyPath(AVPlayer.currentItem.presentationSize))
         player.removeObserver(self, forKeyPath: #keyPath(AVPlayer.status))
     }
@@ -284,6 +281,10 @@ extension VideoPlayerViewController: PUIPlayerViewDelegate {
 
     func playerViewWillEnterPictureInPictureMode(_ playerView: PUIPlayerView) {
 
+    }
+
+    func playerViewDidSelectLike(_ playerView: PUIPlayerView) {
+        delegate?.createFavorite()
     }
 
 }

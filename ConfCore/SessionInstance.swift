@@ -10,7 +10,7 @@ import Cocoa
 import RealmSwift
 
 public enum SessionInstanceType: Int {
-    case session, lab, video, getTogether, specialEvent
+    case session, lab, video, getTogether, specialEvent, labByAppointment
 
     init?(rawSessionType: String) {
         switch rawSessionType {
@@ -24,6 +24,8 @@ public enum SessionInstanceType: Int {
             self = .getTogether
         case "Special Event":
             self = .specialEvent
+        case "Lab by Appointment":
+            self = .labByAppointment
         default: return nil
         }
     }
@@ -97,6 +99,10 @@ public class SessionInstance: Object {
     /// The EKEvent's eventIdentifier 
     /// See https://developer.apple.com/reference/eventkit/ekevent/1507437-eventidentifier
     @objc public dynamic var calendarEventIdentifier = ""
+
+    // Action link
+    @objc public dynamic var actionLinkPrompt: String?
+    @objc public dynamic var actionLinkURL: String?
 
     public override static func primaryKey() -> String? {
         return "identifier"

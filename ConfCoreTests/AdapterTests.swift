@@ -251,7 +251,7 @@ class AdapterTests: XCTestCase {
         let json = getJson(from: "contents")
 
         guard let sessionsArray = json["contents"].array else {
-            XCTFail("Couldn't find an array of sessions in videos.json")
+            XCTFail("Couldn't find an array of sessions in contents.json")
             fatalError()
         }
 
@@ -267,6 +267,9 @@ class AdapterTests: XCTestCase {
             XCTAssertEqual(sessions[0].number, "820")
             XCTAssertEqual(sessions[0].summary, "iMessage Apps help people easily create and share content, play games, and collaborate with friends without needing to leave the conversation. Explore how you can design iMessage apps and sticker packs that are perfectly suited for a deeply social context.")
             XCTAssertEqual(sessions[0].focuses[0].name, "iOS")
+            XCTAssertEqual(sessions[0].related.count, 1)
+            XCTAssertEqual(sessions[0].related[0].identifier, "17")
+            XCTAssertEqual(sessions[0].related[0].type, RelatedResourceType.unknown.rawValue)
         }
     }
 
@@ -296,12 +299,14 @@ class AdapterTests: XCTestCase {
             XCTAssertEqual(instances[0].session?.focuses[0].name, "iOS")
             XCTAssertEqual(instances[0].session?.focuses[1].name, "macOS")
             XCTAssertEqual(instances[0].session?.focuses[2].name, "tvOS")
-            XCTAssertEqual(instances[0].identifier, "2017-8080")
+            XCTAssertEqual(instances[0].identifier, "wwdc2017-8080")
             XCTAssertEqual(instances[0].number, "wwdc2017-8080")
             XCTAssertEqual(instances[0].sessionType, 1)
             XCTAssertEqual(instances[0].keywords.count, 0)
             XCTAssertEqual(instances[0].startTime, dateTimeFormatter.date(from: "2017-06-09T09:00:00-07:00"))
             XCTAssertEqual(instances[0].endTime, dateTimeFormatter.date(from: "2017-06-09T15:30:00-07:00"))
+            XCTAssertEqual(instances[0].actionLinkPrompt, "Request appointment")
+            XCTAssertEqual(instances[0].actionLinkURL, "https://developer.apple.com/go/?id=wwdc-consultations")
 
             // Session
             XCTAssertNotNil(instances[2].session)
@@ -313,7 +318,7 @@ class AdapterTests: XCTestCase {
             XCTAssertEqual(instances[2].session?.focuses[0].name, "iOS")
             XCTAssertEqual(instances[2].session?.focuses[1].name, "macOS")
             XCTAssertEqual(instances[2].session?.focuses[2].name, "tvOS")
-            XCTAssertEqual(instances[2].identifier, "2017-4170")
+            XCTAssertEqual(instances[2].identifier, "wwdc2017-4170")
             XCTAssertEqual(instances[2].number, "wwdc2017-4170")
             XCTAssertEqual(instances[2].sessionType, 1)
             XCTAssertEqual(instances[2].keywords.count, 0)
@@ -364,11 +369,48 @@ class AdapterTests: XCTestCase {
         case .error(let error):
             XCTFail(error.localizedDescription)
         case .success(let transcript):
-            XCTAssertEqual(transcript.identifier, "2014-101")
+            XCTAssertEqual(transcript.identifier, "wwdc2014-101")
             XCTAssertEqual(transcript.fullText.count, 92023)
             XCTAssertEqual(transcript.annotations.count, 2219)
             XCTAssertEqual(transcript.annotations.first!.timecode, 0.506)
             XCTAssertEqual(transcript.annotations.first!.body, "[ Silence ]")
+        }
+    }
+
+    func testFeaturedSectionsAdapter() {
+        let json = getJson(from: "layout")
+
+        guard let sectionsArray = json["sections"].array else {
+            XCTFail("Couldn't find an array of sections in layout.json")
+            fatalError()
+        }
+
+        let result = FeaturedSectionsJSONAdapter().adapt(sectionsArray)
+
+        switch result {
+        case .error(let error):
+            XCTFail(error.localizedDescription)
+        case .success(let sections):
+            XCTAssertEqual(sections[0].order, -1)
+            XCTAssertEqual(sections[0].format, FeaturedSectionFormat.curated)
+            XCTAssertEqual(sections[0].title, "Creator's Favorites")
+            XCTAssertEqual(sections[0].summary, "Rambo's favorite sessions")
+            XCTAssertEqual(sections[0].colorA, "#3C5B72")
+            XCTAssertEqual(sections[0].colorB, "#3D5B73")
+            XCTAssertEqual(sections[0].colorC, "#ACBDCB")
+            XCTAssertEqual(sections[0].author?.name, "Guilherme Rambo")
+            XCTAssertEqual(sections[0].author?.bio, "Guilherme Rambo is the creator of the unofficial WWDC app for macOS")
+            XCTAssertEqual(sections[0].author?.avatar, "https://pbs.twimg.com/profile_images/932637040474316801/mhtK0Y2u_400x400.jpg")
+            XCTAssertEqual(sections[0].author?.url, "https://guilhermerambo.me")
+            XCTAssertEqual(sections[0].content.count, 8)
+            XCTAssertEqual(sections[0].content[0].sessionId, "wwdc2017-211")
+            XCTAssertEqual(sections[0].content[1].sessionId, "wwdc2017-222")
+            XCTAssertEqual(sections[0].content[0].essay?.count, 401)
+            XCTAssertEqual(sections[0].content[0].bookmarks.count, 2)
+            XCTAssertEqual(sections[0].content[0].bookmarks[0].body, "My favorite part")
+            XCTAssertEqual(sections[0].content[0].bookmarks[0].timecode, 180.0)
+            XCTAssertEqual(sections[0].content[0].bookmarks[0].isShared, true)
+            XCTAssertEqual(sections[0].content[0].bookmarks[1].duration, 60.0)
         }
     }
 

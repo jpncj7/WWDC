@@ -55,7 +55,7 @@ extension AppCoordinator: ShelfViewControllerDelegate {
 
         if isReturningFromPip {
             tabController.activeTab = tab
-            currentListController.selectSession(with: identifier)
+            currentListController?.selectSession(with: identifier)
             currentPlayerController?.view.isHidden = false
         }
 
@@ -79,6 +79,7 @@ extension AppCoordinator: ShelfViewControllerDelegate {
 
         do {
             let playbackViewModel = try PlaybackViewModel(sessionViewModel: viewModel, storage: storage)
+            playbackViewModel.image = shelfController.shelfView.image
 
             canRestorePlaybackContext = false
             isTransitioningPlayerContext = false
@@ -106,6 +107,10 @@ extension AppCoordinator: ShelfViewControllerDelegate {
         }
     }
 
+    private var playerTouchBarContainer: MainWindowController? {
+        return currentPlayerController?.view.window?.windowController as? MainWindowController
+    }
+
     private func attachPlayerToShelf(_ shelf: ShelfViewController) {
         guard let playerController = currentPlayerController else { return }
 
@@ -123,6 +128,12 @@ extension AppCoordinator: ShelfViewControllerDelegate {
         shelf.view.addConstraints(NSLayoutConstraint.constraints(withVisualFormat: "V:|-(0)-[playerView]-(0)-|", options: [], metrics: nil, views: ["playerView": playerController.view]))
 
         playerController.view.alphaValue = 1
+
+        playerTouchBarContainer?.activePlayerView = playerController.playerView
+    }
+
+    func publishNowPlayingInfo() {
+        currentPlayerController?.playerView.nowPlayingInfo = currentPlaybackViewModel?.nowPlayingInfo.value
     }
 
 }

@@ -8,9 +8,16 @@
 
 import Cocoa
 import RealmSwift
+import os.log
 
 /// Defines the user action of adding a session as favorite
-public class SessionProgress: Object {
+public final class SessionProgress: Object, HasCloudKitFields, SoftDeletable {
+
+    /// CloudKit system data
+    @objc public dynamic var ckFields = Data()
+
+    /// Soft delete (for syncing)
+    @objc public dynamic var isDeleted: Bool = false
 
     /// Unique identifier
     @objc public dynamic var identifier = UUID().uuidString
@@ -68,7 +75,7 @@ extension Session {
 
             if mustCommit { try realm.commitWrite() }
         } catch {
-            NSLog("Error updating session progress: \(error)")
+            os_log("Error updating session progress: %{public}@", log: .default, type: .error, String(describing: error))
         }
     }
 
@@ -88,7 +95,7 @@ extension Session {
 
             if mustCommit { try realm.commitWrite() }
         } catch {
-            NSLog("Error updating session progress: \(error)")
+            os_log("Error updating session progress: %{public}@", log: .default, type: .error, String(describing: error))
         }
     }
 

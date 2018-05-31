@@ -15,9 +15,6 @@ public class Session: Object {
     /// Unique identifier
     @objc public dynamic var identifier = ""
 
-    /// Session year
-    @objc public dynamic var year = 0
-
     /// Session number
     @objc public dynamic var number = ""
 
@@ -43,6 +40,9 @@ public class Session: Object {
 
     /// The session's assets (videos, slides, links)
     public let assets = List<SessionAsset>()
+
+    // The session's "related" resources -- other sessions, documentation, guides and sample code
+    public var related = List<RelatedResource>()
 
     /// Whether this session is downloaded
     @objc public dynamic var isDownloaded = false
@@ -132,20 +132,34 @@ public class Session: Object {
         let assets = other.assets.filter { otherAsset in
             return !self.assets.contains(where: { $0.identifier == otherAsset.identifier })
         }
-
         self.assets.append(objectsIn: assets)
 
-        let otherFocuses = other.focuses.map { newFocus -> (Focus) in
-            if newFocus.realm == nil,
-                let existingFocus = realm.object(ofType: Focus.self, forPrimaryKey: newFocus.name) {
-                return existingFocus
+        other.related.forEach { newRelated in
+            let effectiveRelated: RelatedResource
+
+            if let existingResource = realm.object(ofType: RelatedResource.self, forPrimaryKey: newRelated.identifier) {
+                effectiveRelated = existingResource
             } else {
-                return newFocus
+                effectiveRelated = newRelated
             }
+
+            guard !related.contains(where: { $0.identifier == effectiveRelated.identifier }) else { return }
+            related.append(effectiveRelated)
         }
 
-        focuses.removeAll()
-        focuses.append(objectsIn: otherFocuses)
+        other.focuses.forEach { newFocus in
+            let effectiveFocus: Focus
+
+            if let existingFocus = realm.object(ofType: Focus.self, forPrimaryKey: newFocus.name) {
+                effectiveFocus = existingFocus
+            } else {
+                effectiveFocus = newFocus
+            }
+
+            guard !focuses.contains(where: { $0.name == effectiveFocus.name }) else { return }
+
+            focuses.append(effectiveFocus)
+        }
     }
 
 }

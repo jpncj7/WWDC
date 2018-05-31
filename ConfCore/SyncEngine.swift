@@ -19,6 +19,10 @@ public final class SyncEngine {
     public let storage: Storage
     public let client: AppleAPIClient
 
+    #if ICLOUD
+    public let userDataSyncEngine: UserDataSyncEngine
+    #endif
+
     private var didRunIndexingService = false
 
     private lazy var transcriptIndexingConnection: NSXPCConnection = {
@@ -39,8 +43,15 @@ public final class SyncEngine {
         self.storage = storage
         self.client = client
 
+        #if ICLOUD
+        self.userDataSyncEngine = UserDataSyncEngine(storage: storage)
+        #endif
+
         NotificationCenter.default.rx.notification(.SyncEngineDidSyncSessionsAndSchedule).observeOn(MainScheduler.instance).subscribe(onNext: { [unowned self] _ in
             self.startTranscriptIndexingIfNeeded()
+            #if ICLOUD
+            self.userDataSyncEngine.start()
+            #endif
         }).disposed(by: disposeBag)
     }
 
@@ -49,6 +60,10 @@ public final class SyncEngine {
             DispatchQueue.main.async {
                 self.storage.store(contentResult: scheduleResult) { error in
                     NotificationCenter.default.post(name: .SyncEngineDidSyncSessionsAndSchedule, object: error)
+
+//                    guard error == nil else { return }
+
+//                    self.syncFeaturedSections()
                 }
             }
         }
@@ -58,6 +73,14 @@ public final class SyncEngine {
         client.fetchLiveVideoAssets { [weak self] result in
             DispatchQueue.main.async {
                 self?.storage.store(liveVideosResult: result)
+            }
+        }
+    }
+
+    public func syncFeaturedSections() {
+        client.fetchFeaturedSections { [weak self] result in
+            DispatchQueue.main.async {
+                self?.storage.store(featuredSectionsResult: result)
             }
         }
     }

@@ -18,9 +18,17 @@ enum AssetKeys: String, JSONSubscriptType {
 }
 
 private enum SessionKeys: String, JSONSubscriptType {
-    case id, year, title, platforms, description, startTime, eventContentId, eventId, media, webPermalink, staticContentId
+    case id, year, title, platforms, description, startTime, eventContentId, eventId, media, webPermalink, staticContentId, related
 
     case track = "trackId"
+
+    var jsonKey: JSONKey {
+        return JSONKey.key(rawValue)
+    }
+}
+
+private enum RelatedKeys: String, JSONSubscriptType {
+    case activities, resources
 
     var jsonKey: JSONKey {
         return JSONKey.key(rawValue)
@@ -33,7 +41,7 @@ final class SessionsJSONAdapter: Adapter {
     typealias OutputType = Session
 
     func adapt(_ input: JSON) -> Result<Session, AdapterError> {
-        guard let id = input[SessionKeys.id].string?.replacingOccurrences(of: "wwdc", with: "") else {
+        guard let id = input[SessionKeys.id].string else {
             return .error(.missingKey(SessionKeys.id))
         }
 
@@ -114,6 +122,21 @@ final class SessionsJSONAdapter: Adapter {
             session.assets.append(slidesAsset)
         }
 
+        if let resourcesJSON = input[SessionKeys.related][RelatedKeys.resources].array {
+            if case .success(let resources) = SessionRelatedJSONAdapter().adapt(resourcesJSON) {
+                session.related.append(contentsOf: resources)
+            }
+        }
+
+        if let activitiesJSON = input[SessionKeys.related][RelatedKeys.activities].array {
+            session.related.append(contentsOf: activitiesJSON.compactMap {
+                let resource = RelatedResource()
+                resource.identifier = $0.string!
+                resource.type = RelatedResourceType.session.rawValue
+                return resource
+            })
+        }
+
         if let permalink = input[SessionKeys.webPermalink].string {
             let webPageAsset = SessionAsset()
             webPageAsset.rawAssetType = SessionAssetType.webpage.rawValue
@@ -126,7 +149,6 @@ final class SessionsJSONAdapter: Adapter {
 
         session.staticContentId = "\(input[SessionKeys.staticContentId].intValue)"
         session.identifier = id
-        session.year = Int(eventYear) ?? -1
         session.number = "\(eventContentId)"
         session.title = title
         session.summary = summary

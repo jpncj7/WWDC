@@ -7,18 +7,34 @@
 //
 
 import Foundation
+import os.log
 
 public extension Notification.Name {
     public static let WWDCEnvironmentDidChange = Notification.Name("WWDCEnvironmentDidChange")
 }
 
-public struct Environment {
+public struct Environment: Equatable {
 
     public let baseURL: String
     public let videosPath: String
     public let sessionsPath: String
     public let newsPath: String
     public let liveVideosPath: String
+    public let featuredSectionsPath: String
+
+    public init(baseURL: String,
+                videosPath: String,
+                sessionsPath: String,
+                newsPath: String,
+                liveVideosPath: String,
+                featuredSectionsPath: String) {
+        self.baseURL = baseURL
+        self.videosPath = videosPath
+        self.sessionsPath = sessionsPath
+        self.newsPath = newsPath
+        self.liveVideosPath = liveVideosPath
+        self.featuredSectionsPath = featuredSectionsPath
+    }
 
     public static func setCurrent(_ environment: Environment) {
         objc_sync_enter(self)
@@ -32,7 +48,7 @@ public struct Environment {
 
         if shouldNotify {
             DispatchQueue.main.async {
-                NSLog("ENVIRONMENT CHANGED! New base URL: \(environment.baseURL)")
+                os_log("Environment base URL: %@", log: .default, type: .info, environment.baseURL)
 
                 NotificationCenter.default.post(name: .WWDCEnvironmentDidChange, object: environment)
             }
@@ -55,7 +71,8 @@ extension Environment {
             videosPath: "/videos.json",
             sessionsPath: "/sessions.json",
             newsPath: "/news.json",
-            liveVideosPath: "/videos_live.json"
+            liveVideosPath: "/videos_live.json",
+            featuredSectionsPath: "/_featured.json"
         )
     }
 
@@ -75,24 +92,14 @@ extension Environment {
                                          videosPath: "/videos.json",
                                          sessionsPath: "/contents.json",
                                          newsPath: "/news.json",
-                                         liveVideosPath: "/videos_live.json")
+                                         liveVideosPath: "/videos_live.json",
+                                         featuredSectionsPath: "/_featured.json")
 
-    public static let production = Environment(baseURL: "https://api2017.wwdc.io",
+    public static let production = Environment(baseURL: "https://api2018.wwdc.io",
                                                videosPath: "/videos.json",
                                                sessionsPath: "/contents.json",
                                                newsPath: "/news.json",
-                                               liveVideosPath: "/videos_live.json")
-
-}
-
-extension Environment: Equatable {
-
-    public static func == (lhs: Environment, rhs: Environment) -> Bool {
-        return lhs.baseURL == rhs.baseURL
-            && lhs.videosPath == rhs.videosPath
-            && lhs.sessionsPath == rhs.sessionsPath
-            && lhs.newsPath == rhs.newsPath
-            && lhs.liveVideosPath == rhs.liveVideosPath
-    }
+                                               liveVideosPath: "/videos_live.json",
+                                               featuredSectionsPath: "/_featured.json")
 
 }

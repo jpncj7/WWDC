@@ -7,8 +7,10 @@
 //
 
 import Cocoa
+import PlayerUI
 
 enum MainWindowTab: Int {
+//    case featured
     case schedule
     case videos
 
@@ -26,6 +28,12 @@ extension Notification.Name {
 }
 
 final class MainWindowController: NSWindowController {
+
+    weak var activePlayerView: PUIPlayerView? {
+        didSet {
+            touchBar = nil
+        }
+    }
 
     static var defaultRect: NSRect {
         return NSScreen.main?.visibleFrame.insetBy(dx: 50, dy: 120) ??
@@ -65,6 +73,10 @@ final class MainWindowController: NSWindowController {
 
     @IBAction func performFindPanelAction(_ sender: Any) {
         NotificationCenter.default.post(name: .MainWindowWantsToSelectSearchField, object: nil)
+    }
+
+    override func makeTouchBar() -> NSTouchBar? {
+        return activePlayerView?.makeTouchBar()
     }
 
 }

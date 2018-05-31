@@ -23,12 +23,18 @@ extension AppCoordinator: PUITimelineDelegate, VideoPlayerViewControllerDelegate
         storage.modify(session) { bgSession in
             let bookmark = Bookmark()
             bookmark.timecode = timecode
-            bookmark.snapshot = snapshot?.tiffRepresentation ?? Data()
+            bookmark.snapshot = snapshot?.compressedJPEGRepresentation ?? Data()
 
             bgSession.bookmarks.append(bookmark)
         }
 
         // TODO: begin editing new bookmark
+    }
+
+    func createFavorite() {
+        guard let session = currentPlayerController?.sessionViewModel.session else { return }
+
+        storage.createFavorite(for: session)
     }
 
     func viewControllerForTimelineAnnotation(_ annotation: PUITimelineAnnotation) -> NSViewController? {
